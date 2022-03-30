@@ -1,0 +1,166 @@
+---
+title: "Red Wine Insights"
+author: "Jason DeCambre"
+date: "3/29/2022"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library('formatR')
+knitr::opts_chunk$set(tidy.opts = list(width.cutoff = 60), tidy = TRUE)
+```
+
+# Red Wine Insights
+
+### Here, we'll take a look at some of the chemical features that make these wines more or less enjoyable.
+
+### Data from a 2009 Vinho Verde dataset from Portugal:
+
+##### P. Cortez, A. Cerdeira, F. Almeida, T. Matos and J. Reis.
+##### Modeling wine preferences by data mining from physicochemical properties. In Decision Support Systems, Elsevier, 47(4):547-553, 2009.
+
+##### Available at https://archive.ics.uci.edu/ml/datasets/wine+quality
+
+##### Inspiration also from https://towardsdatascience.com/a-data-scientists-guide-to-buying-wine-b584c77b9e60
+
+## Loading data and taking a look:
+### For some reason they separated these with a semicolon, so we'll have to override the default comma separator
+
+```{r}
+data <- read.csv('winequality-red.csv', sep=';')
+head(data)
+```
+
+## Analyzing data that we don't understand isn't the best idea, so let's establish what these mean:
+-  __Fixed acidity:__ this gives the wine its structure and 'zing'...too much, and it's sour, too little, and it tastes flat and flabby
+- __Volatile acidity:__ while this comes from acid, it's something you sooner smell than taste. Volatile acids become gases near room temperature and so we wouldn't expect them to add much to enjoyment
+- __Citric acid:__ adds to overall acidity, usually used as an additive to improve taste and make the wine more robust to other flavours
+- __Residual sugar:__ wine is alcoholic because sugar ferments into alcohol. Any sugar left behind in this process is residual, and thus gives the wine a sweet taste
+- __Chlorides:__ these are salts. This often has a lot to do with the kind of soil at the vineyard
+- __Sulfur:__ a little reading online says that this is often added to help prevent bacterial growth, though I don't know much about this part
+- __Quality:__ subjective rating by tasters between 1 and 10
+
+## Now it would be good to check out some summary statistics and distributions for these attributes.
+
+```{r}
+summary(data)
+```
+
+## Thankfully no NA values.
+
+### Going on to look at the structure of the data:
+
+```{r}
+str(data)
+```
+
+### This all looks clean and well standardized. Time to look at distributions and outliers.
+
+```{r}
+hist(data$fixed.acidity)
+hist(data$volatile.acidity)
+hist(data$citric.acid)
+hist(data$citric.acid)
+hist(data$residual.sugar)
+hist(data$chlorides)
+hist(data$free.sulfur.dioxide)
+hist(data$total.sulfur.dioxide)
+hist(data$density)
+hist(data$pH)
+hist(data$sulphates)
+hist(data$alcohol)
+hist(data$quality)
+```
+
+
+### Most of these are positively skewed, and the "quality" ratings show the tasters generally thought most of these wines to be mediocre.
+
+### Looking for outliers:
+
+```{r}
+boxplot(data$fixed.acidity)
+boxplot(data$volatile.acidity)
+boxplot(data$citric.acid)
+boxplot(data$citric.acid)
+boxplot(data$residual.sugar)
+boxplot(data$chlorides)
+boxplot(data$free.sulfur.dioxide)
+boxplot(data$total.sulfur.dioxide)
+boxplot(data$density)
+boxplot(data$pH)
+boxplot(data$sulphates)
+boxplot(data$alcohol)
+boxplot(data$quality)
+```
+
+### Interesting. The positive skew is coming out here, so we have lots of outliers. Since this dataset has so many, I won't do anything about the outliers just yet. Maybe what's happening at the extremes has the coolest insights.
+
+## Heatmap to show correlations
+
+### Now that we have an idea of how our dataset looks, we can check out the correlations between the different attributes and see what jumps out:
+
+```{r}
+library(ggplot2)
+library(plotly)
+library(ggcorrplot)
+
+# Correlation matrix
+corr <- round(cor(data),1)
+
+# p-value significance of correlation matrix
+ps <- cor_pmat(data)
+
+plot <- ggcorrplot(corr,hc.order = TRUE, type = 'lower', outline.col = 'white', p.mat = ps)
+ggplotly(plot)
+
+
+```
+
+### Chemistry says some of these correlations make a lot of sense:
+- pH and acidity are strongly negatively correlated, since lower pH values mean greater acidity
+- citric acid increases fixed acidity, so they move together
+- people like alcohol, so that's what was most strongly correlated with quality :)
+- alcohol and fixed (liquid) acids are less dense than water and volatile acids, so more of the former mean less of the latter
+
+## What makes an amazing red wine?
+
+### If we take the superb wines (8+ on the scale), the mediocre wines (4-7) and the dreadful ones (3-), we might see some differences that separate the good, the bad and the ugly.
+
+```{r}
+data$category <- ifelse(data$quality >= 8, 'superb',ifelse(data$quality <= 3, 'dreadful','mediocre'))
+ggplotly(ggplot(data, aes(x=category,fill=category)) + geom_bar())
+```
+
+### Nearly all the wines are mediocre. Oh well.
+
+## Alcohol, fixed acid and quality
+
+```{r}
+ggplotly(ggplot(data,aes(x=fixed.acidity,y=alcohol,fill=category)) + geom_point(size=data$quality))
+```
+### Moderate to low fixed acidity and a high alcohol content seem to make the preferred wines.
+
+## Sweet and salt
+
+### We don't typically think of sweet and salt for wine, but let's see if there's any useful takeway from that.
+
+```{r}
+ggplotly(ggplot(data[data$category == 'dreadful',],aes(x=residual.sugar,y=chlorides)) + geom_point(color='brown4') + geom_smooth(method=lm,color='red'))
+```
+
+
+```{r}
+ggplotly(ggplot(data[data$category == 'mediocre',],aes(x=residual.sugar,y=chlorides)) + geom_point(color='seagreen4') + geom_smooth(method=lm,color='springgreen3'))
+```
+
+```{r}
+ggplotly(ggplot(data[data$category == 'superb',],aes(x=residual.sugar,y=chlorides)) + geom_point(color='steelblue3') + geom_smooth(method=lm,color='blue4'))
+```
+
+
+### Now the scales of the axes and the sample sizes have a lot to do with hat we see here. But the takeaway is: if you're going to make a salty red wine, at least make it sweet enough and strong enough to cover the taste.
+
+
+## Conclusion: people seem to like wines with lots of alcohol, moderate acidity and not a lot of salt -- or maybe with just enough sugar to cover it over.
+
